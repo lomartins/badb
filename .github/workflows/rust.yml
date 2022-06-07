@@ -20,6 +20,8 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+    - name: Setup Windows x86_64 achitecture
+      run: rustup target add x86_64-pc-windows-gnu; rustup toolchain install stable-x86_64-pc-windows-gnu
     - name: Build Windows x86_64 Release
       run: cargo build --release --target x86_64-pc-windows-gnu
     - name: Build Linux Release
