@@ -1,7 +1,7 @@
 use std::{env, io};
 use std::io::Write;
 use std::process::exit;
-use clap::{command, Command};
+use clap::{arg, ArgGroup, command, Command};
 use crate::badb::Badb;
 
 mod badb;
@@ -14,13 +14,24 @@ fn main() {
     let arg_parser = command!()
         .propagate_version(true)
         .about("Badb is a tool to interact with Android devices")
+        .arg(
+            arg!(-s --serial <serial> "Use device with given serial")
+                .required(false)
+        )
         .subcommand(
             Command::new("devices")
-                .about("list connected devices"),
+                .about("List connected devices"),
         )
         .subcommand(
             Command::new("list-packages")
-                .about("list packages installed on device"),
+                .about("List packages installed on device")
+                .arg(arg!(-'3' --third "List third-party packages"))
+                .arg(arg!(-s --system "List system packages"))
+                .group(
+                    ArgGroup::new("mode")
+                        .required(false)
+                        .args(&["third", "system"]),
+                )
         );
 
     let mut badb = Badb::new();
@@ -28,9 +39,21 @@ fn main() {
     let matchers_result = arg_parser.try_get_matches();
     let result = match matchers_result {
         Ok(matches) => {
+            if let Some(serial) = matches.value_of("serial") {
+                badb.serial = Some(serial.to_string());
+            }
+
             match matches.subcommand() {
                 Some(("devices", _sub_matches)) => badb.devices(),
-                Some(("list-packages", _sub_matches)) => badb.list_packages(Some(&vec!["-3".to_string()])),
+                Some(("list-packages", sub_matchers)) => {
+                    let mut args: Vec<String> = vec![];
+                    if sub_matchers.is_present("third") {
+                        args.push("-3".to_string());
+                    } else if sub_matchers.is_present("system") {
+                        args.push("-s".to_string());
+                    }
+                    badb.list_packages(Some(&args))
+                },
                 _ => badb.generic_cmd(&args),
             }
         },

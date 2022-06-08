@@ -3,6 +3,7 @@ use std::ffi::OsStr;
 use std::io;
 use std::io::Write;
 use std::process::Command;
+use tabled::Table;
 use crate::badb::device::Device;
 
 pub mod device;
@@ -28,7 +29,7 @@ impl Badb {
             I: IntoIterator<Item=S>,
             S: AsRef<OsStr>,
     {
-        let mut cmd = self.create_adb_cmd();
+        let mut cmd = Command::new("adb");
         cmd.args(args);
 
         self.execute_cmd(cmd.borrow_mut())
@@ -51,12 +52,7 @@ impl Badb {
                 return if devices.len() == 0 {
                     Err("No devices found".to_string())
                 } else {
-                    let mut result = String::new();
-                    result.push_str("List of devices attached:\n");
-                    for device in devices {
-                        result.push_str(&format!("{}\n", device));
-                    }
-                    Ok(result)
+                    Ok(Table::new(devices).to_string())
                 }
             }
             None => Err("No devices found".to_string()),
@@ -113,8 +109,9 @@ impl Badb {
                         .to_string();
 
                     let os_version = self.get_device_os(&serial);
+                    let ip = self.get_device_ip(&serial);
 
-                    devices.push(Device::new(serial, Some(model), os_version));
+                    devices.push(Device::new(serial, model, os_version, ip));
                 }
             }
             Some(devices)
@@ -135,9 +132,38 @@ impl Badb {
         }
     }
 
+    fn get_device_ip(&mut self, serial: &String) -> Option<String> {
+        let mut cmd = self.create_adb_cmd();
+        cmd.arg("-s")
+            .arg(serial)
+            .arg("shell")
+            .arg("ip")
+            .arg("route");
+
+        let output = cmd.output().unwrap();
+        if output.status.success() {
+            let response = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            Some(
+                response.split('\n')
+                    .find(|x| x.contains("src "))?
+                    .split("src ")
+                    .nth(1)?
+                    .split(" ")
+                    .nth(0)?
+                    .to_string()
+            )
+        } else {
+            None
+        }
+    }
+
     fn handle_multi_devices_error(&mut self) -> Result<String, String> {
         match self.select_device() {
-            Ok(_) => self.generic_cmd(self.args.clone()),
+            Ok(_) => {
+                let mut cmd = self.create_adb_cmd();
+                cmd.args(&self.args);
+                self.execute_cmd(cmd.borrow_mut())
+            },
             Err(err) => Err(err)
         }
     }
