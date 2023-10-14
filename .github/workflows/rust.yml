@@ -1,0 +1,40 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Setup Windows x86_64 achitecture
+      run: |
+        rustup target add x86_64-pc-windows-gnu
+        rustup toolchain install stable-x86_64-pc-windows-gnu
+    - name: Build Windows x86_64 Release
+      run: cargo build --release --target x86_64-pc-windows-gnu
+    - name: Build Linux Release
+      run: cargo build --release
+    - name: Upload Windows x86_64 Artifact
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: badb_windows_x86_64.exe
+        path: "target/x86_64-pc-windows-gnu/release/badb.exe"
+    - name: Upload Linux x86_64 Artifact
+      uses: actions/upload-artifact@v3.1.0
+      with:
+        name: badb_linux_x86_64
+        path: "target/release/badb"
